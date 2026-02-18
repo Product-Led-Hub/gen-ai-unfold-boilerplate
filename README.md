@@ -6,7 +6,7 @@ A production-ready boilerplate for building AI applications with Next.js and the
 
 ---
 
-## Gen AI Development Bootcamp | Disrupt AI Summit 2026
+## Gen AI Development Bootcamp | Gen AI Unfold Summit 2026
 
 This is the **official boilerplate** for the [Gen AI Development Bootcamp](https://productledhub.com/gen-ai-unfold-summit/gen-ai-development-bootcamp/) by Gen AI Unfold 2026.
 

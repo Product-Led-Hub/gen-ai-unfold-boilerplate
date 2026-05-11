@@ -16,6 +16,10 @@ interface SettingsState {
     lmstudio: string;
     ollama: string;
   };
+  // Session 3 — tool calling & RAG toggles
+  useTools: boolean;
+  useRAG: boolean;
+  ragEmbeddingProvider: "openai" | "ollama";
 }
 
 const initialState: SettingsState = {
@@ -29,6 +33,9 @@ const initialState: SettingsState = {
     lmstudio: "http://localhost:1234/v1",
     ollama: "http://localhost:11434/api",
   },
+  useTools: false,
+  useRAG: false,
+  ragEmbeddingProvider: "openai",
 };
 
 const settingsSlice = createSlice({
@@ -62,6 +69,15 @@ const settingsSlice = createSlice({
     ) => {
       state.localEndpoints[action.payload.provider] = action.payload.endpoint;
     },
+    setUseTools: (state, action: PayloadAction<boolean>) => {
+      state.useTools = action.payload;
+    },
+    setUseRAG: (state, action: PayloadAction<boolean>) => {
+      state.useRAG = action.payload;
+    },
+    setRAGEmbeddingProvider: (state, action: PayloadAction<"openai" | "ollama">) => {
+      state.ragEmbeddingProvider = action.payload;
+    },
     resetSettings: () => initialState,
   },
 });
@@ -74,6 +90,9 @@ export const {
   setSystemPrompt,
   setApiKey,
   setLocalEndpoint,
+  setUseTools,
+  setUseRAG,
+  setRAGEmbeddingProvider,
   resetSettings,
 } = settingsSlice.actions;
 

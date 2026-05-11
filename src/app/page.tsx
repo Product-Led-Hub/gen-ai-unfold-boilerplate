@@ -3,10 +3,22 @@
 import { useChat } from "@ai-sdk/react";
 import { useMemo } from "react";
 import { TextStreamChatTransport } from "ai";
-import { ChatMessages, ChatInput, ProviderSelector } from "@/components/chat";
+import {
+  ChatMessages,
+  ChatInput,
+  ProviderSelector,
+  FeaturesToggle,
+} from "@/components/chat";
+import { DocumentUpload } from "@/components/rag/DocumentUpload";
 import { AIProvider, DEFAULT_MODELS } from "@/lib/ai/providers";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { setProvider, setModel } from "@/lib/store/slices/settingsSlice";
+import {
+  setProvider,
+  setModel,
+  setUseTools,
+  setUseRAG,
+  setRAGEmbeddingProvider,
+} from "@/lib/store/slices/settingsSlice";
 
 export default function Home() {
   const dispatch = useAppDispatch();
@@ -22,6 +34,9 @@ export default function Home() {
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
           systemPrompt: settings.systemPrompt,
+          useTools: settings.useTools,
+          useRAG: settings.useRAG,
+          ragEmbeddingProvider: settings.ragEmbeddingProvider,
         },
       }),
     [
@@ -30,12 +45,13 @@ export default function Home() {
       settings.temperature,
       settings.maxTokens,
       settings.systemPrompt,
+      settings.useTools,
+      settings.useRAG,
+      settings.ragEmbeddingProvider,
     ]
   );
 
-  const { messages, sendMessage, status, error } = useChat({
-    transport,
-  });
+  const { messages, sendMessage, status, error } = useChat({ transport });
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -55,13 +71,29 @@ export default function Home() {
   return (
     <main className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-80 border-r p-4 hidden md:block">
-        <h1 className="text-xl font-bold mb-6">AI Chat</h1>
+      <aside className="w-80 border-r p-4 hidden md:flex flex-col gap-4 overflow-y-auto">
+        <h1 className="text-xl font-bold">AI Chat</h1>
+
         <ProviderSelector
           provider={settings.provider}
           model={settings.model}
           onProviderChange={handleProviderChange}
           onModelChange={handleModelChange}
+        />
+
+        {/* Session 3: Features (tools + RAG) */}
+        <FeaturesToggle
+          useTools={settings.useTools}
+          useRAG={settings.useRAG}
+          ragEmbeddingProvider={settings.ragEmbeddingProvider}
+          onToggleTools={(v) => dispatch(setUseTools(v))}
+          onToggleRAG={(v) => dispatch(setUseRAG(v))}
+          onChangeEmbeddingProvider={(v) => dispatch(setRAGEmbeddingProvider(v))}
+        />
+
+        {/* Session 3: Knowledge base upload */}
+        <DocumentUpload
+          embeddingProvider={settings.ragEmbeddingProvider}
         />
       </aside>
 
@@ -72,6 +104,18 @@ export default function Home() {
           <div>
             <h2 className="font-semibold">{settings.provider}</h2>
             <p className="text-sm text-muted-foreground">{settings.model}</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {settings.useTools && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                Tools ON
+              </span>
+            )}
+            {settings.useRAG && (
+              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                RAG ON
+              </span>
+            )}
           </div>
         </header>
 
@@ -106,3 +150,4 @@ export default function Home() {
     </main>
   );
 }
+

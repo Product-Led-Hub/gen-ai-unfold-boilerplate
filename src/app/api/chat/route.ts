@@ -2,18 +2,51 @@ import { streamText, createTextStreamResponse } from "ai";
 import { NextRequest } from "next/server";
 import { chatRequestSchema } from "@/lib/ai/schemas";
 import { getModel } from "@/lib/ai/providers";
+import { allTools } from "@/lib/ai/tools";
+import { retrieveContext, buildRAGSystemPrompt, getDocumentCount } from "@/lib/rag";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validated = chatRequestSchema.parse(body);
 
-    const { messages, provider, model, temperature, maxTokens, systemPrompt } =
-      validated;
+    const {
+      messages,
+      provider,
+      model,
+      temperature,
+      maxTokens,
+      systemPrompt,
+      useTools,
+      useRAG,
+      ragEmbeddingProvider,
+    } = validated;
 
-    const formattedMessages = systemPrompt
-      ? [{ role: "system" as const, content: systemPrompt }, ...messages]
-      : messages;
+    // ── Build system prompt (optionally augmented with RAG context) ──────────
+    let finalSystemPrompt = systemPrompt ?? "You are a helpful AI assistant.";
+
+    if (useRAG && getDocumentCount() > 0) {
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m.role === "user")?.content ?? "";
+
+      const { contextText, sources } = await retrieveContext(lastUserMessage, {
+        topK: 3,
+        embeddingProvider: ragEmbeddingProvider ?? "openai",
+      });
+
+      if (contextText) {
+        finalSystemPrompt = buildRAGSystemPrompt(contextText, finalSystemPrompt);
+        console.log(
+          `[RAG] Retrieved ${sources.length} chunks for query: "${lastUserMessage.slice(0, 60)}..."`
+        );
+      }
+    }
+
+    const formattedMessages = [
+      { role: "system" as const, content: finalSystemPrompt },
+      ...messages,
+    ];
 
     const aiModel = getModel({
       provider,
@@ -33,6 +66,8 @@ export async function POST(request: NextRequest) {
       messages: formattedMessages,
       temperature,
       maxOutputTokens: maxTokens,
+      // ── Tool calling (Session 3) ─────────────────────────────────────────
+      ...(useTools && { tools: allTools, maxSteps: 5 }),
     });
 
     return createTextStreamResponse({

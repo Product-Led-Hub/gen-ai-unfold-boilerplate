@@ -13,6 +13,11 @@ export const chatRequestSchema = z.object({
   maxTokens: z.number().min(1).max(100000).optional().default(4096),
   systemPrompt: z.string().optional(),
   stream: z.boolean().optional().default(true),
+  // Session 3: tool calling
+  useTools: z.boolean().optional().default(false),
+  // Session 3: RAG
+  useRAG: z.boolean().optional().default(false),
+  ragEmbeddingProvider: z.enum(["openai", "ollama"]).optional().default("openai"),
 });
 
 export const providerConfigSchema = z.object({

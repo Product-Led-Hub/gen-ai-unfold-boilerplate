@@ -1,3 +1,32 @@
+/**
+ * @file lib/ai/providers.ts
+ * @description LLM provider registry and model factory.
+ *
+ * Responsibilities:
+ *  - Defines the `AIProvider` union type: `"openai" | "anthropic" | "google" | "lmstudio" | "ollama"`.
+ *  - `PROVIDER_INFO` — display names and local/cloud flags for UI rendering.
+ *  - `DEFAULT_MODELS` — sensible default model per provider.
+ *  - `AVAILABLE_MODELS` — dropdown lists for cloud providers; local providers
+ *    use a free-text input since available models depend on what is loaded.
+ *  - `getModel(config)` — factory that returns a Vercel AI SDK `LanguageModel`
+ *    instance for the requested provider, wiring API keys and base URLs.
+ *
+ * How to use:
+ * ```ts
+ * // In an API route handler:
+ * const model = getModel({
+ *   provider: "lmstudio",
+ *   model: "mistralai/ministral-3b-latest",
+ *   config: { baseURL: "http://localhost:1234/v1" },
+ * });
+ * const result = await streamText({ model, messages });
+ * ```
+ *
+ * Adding a new provider:
+ *  1. Add the key to the `AIProvider` union.
+ *  2. Add an entry to `PROVIDER_INFO`, `DEFAULT_MODELS`, `AVAILABLE_MODELS`.
+ *  3. Add a `case` in `getModel()` that calls the appropriate `@ai-sdk/*` factory.
+ */
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -91,15 +120,19 @@ export function createDynamicProvider(
       });
 
     case "lmstudio":
+      // LM Studio does not require authentication.
+      // The Vercel AI SDK's createOpenAI validates that apiKey is non-empty,
+      // so we pass a single space — LM Studio ignores the Authorization header.
       return createOpenAI({
-        apiKey: "lm-studio",
-        baseURL: config?.baseURL || "http://localhost:1234/v1",
+        apiKey: config?.apiKey || " ",
+        baseURL: config?.baseURL || process.env.LMSTUDIO_BASE_URL || "http://localhost:1234/v1",
       });
 
     case "ollama":
+      // Ollama also needs no auth key.
       return createOpenAI({
-        apiKey: "ollama",
-        baseURL: config?.baseURL || "http://localhost:11434/v1",
+        apiKey: config?.apiKey || " ",
+        baseURL: config?.baseURL || process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
       });
 
     default:
@@ -110,6 +143,40 @@ export function createDynamicProvider(
 export function getModel(modelConfig: ModelConfig): LanguageModel {
   const provider = createDynamicProvider(modelConfig.provider, modelConfig.config);
   return provider(modelConfig.model) as LanguageModel;
+}
+
+// ─── Convenience helpers shown in the bootcamp slides ─────────────────────────
+// Used in Session 1 to demonstrate swapping providers with one function call.
+
+/**
+ * getLMStudioModel — use LM Studio as the AI provider.
+ * Start the Local Server in LM Studio, then select a loaded model.
+ * The server exposes an OpenAI-compatible API on port 1234.
+ *
+ * Usage:
+ *   const model = getLMStudioModel('llama-3.2-3b-instruct');
+ */
+export function getLMStudioModel(modelId: string): LanguageModel {
+  const lmstudio = createOpenAI({
+    baseURL: process.env.LMSTUDIO_BASE_URL ?? "http://localhost:1234/v1",
+    apiKey: " ", // LM Studio ignores the Authorization header
+  });
+  return lmstudio(modelId) as LanguageModel;
+}
+
+/**
+ * getOllamaModel — use Ollama as the AI provider.
+ * Run: ollama serve  (port 11434, OpenAI-compatible endpoint)
+ *
+ * Usage:
+ *   const model = getOllamaModel('llama3.2');
+ */
+export function getOllamaModel(modelId: string): LanguageModel {
+  const ollama = createOpenAI({
+    baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
+    apiKey: " ", // Ollama ignores the Authorization header
+  });
+  return ollama(modelId) as LanguageModel;
 }
 
 export function getModelFromEnv(

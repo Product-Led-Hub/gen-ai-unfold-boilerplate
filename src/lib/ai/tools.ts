@@ -1,9 +1,43 @@
+/**
+ * @file lib/ai/tools.ts
+ * @description Tool definitions for the AI agent (Vercel AI SDK tool calling).
+ *
+ * Each tool is an object with:
+ *  - `description` — natural-language hint the LLM uses to decide when to call it.
+ *  - `inputSchema` — Zod schema that validates and types the model's arguments.
+ *  - `execute` — async function that runs server-side and returns the result.
+ *
+ * Current tools:
+ *  - `weatherTool` — returns mock weather data for a city. Replace `execute()`
+ *    with a real API (open-meteo.com, openweathermap) to go live.
+ *  - `calculatorTool` — safe arithmetic evaluator (no `eval()`). Supports
+ *    `+ - * / ** ()` and decimal numbers.
+ *  - `currentDateTimeTool` — returns the current UTC date, time, and timezone.
+ *  - `allTools` — record exported to `POST /api/chat` when `useTools: true`.
+ *
+ * How to add a new tool:
+ * ```ts
+ * export const myTool = tool({
+ *   description: "What the tool does — be specific.",
+ *   inputSchema: z.object({ arg: z.string() }),
+ *   execute: async ({ arg }) => { return { result: arg.toUpperCase() }; },
+ * });
+ *
+ * // Then add it to allTools:
+ * export const allTools = { weather: weatherTool, calculator: calculatorTool, myTool };
+ * ```
+ *
+ * Bootcamp session: Session 3 — Tool Calling.
+ * Test prompt: "What is the weather in Athens?" with Tools ON in the sidebar.
+ */
 import { tool } from "ai";
 import { z } from "zod";
 
 // ─── Weather Tool ─────────────────────────────────────────────────────────────
-// Demo: shows how to call an external API from a tool.
-// In production, replace the mock with a real weather API (e.g. open-meteo.com).
+// Session 3 live coding — first tool you add in the bootcamp.
+// Currently uses mock data. Replace execute() with a real API call
+// (e.g. open-meteo.com or openweathermap.org) for production.
+// Test prompt: "What is the weather in Athens?" with Tools ON in LM Studio.
 
 export const weatherTool = tool({
   description:
@@ -122,6 +156,12 @@ function safeEval(expression: string): number {
   return result;
 }
 
+// STEP 1 — describe it clearly so the model knows WHEN to call this tool.
+// STEP 2 — define inputSchema with Zod. The AI SDK converts it to JSON Schema
+//          automatically and passes it to the model in the system context.
+// STEP 3 — execute() is called by the SDK when the model triggers this tool.
+//          Return plain data — the model reads it and writes the final answer.
+// STEP 4 — add to allTools export at the bottom of this file.
 export const calculatorTool = tool({
   description:
     "Perform safe arithmetic calculations. Supports +, -, *, /, ** (power), and parentheses.",
@@ -132,6 +172,7 @@ export const calculatorTool = tool({
         "The arithmetic expression to evaluate, e.g. '(15 * 8) / 3 + 2'"
       ),
   }),
+  // No eval() or Function() — uses a recursive-descent parser for safety.
   execute: async ({ expression }: { expression: string }) => {
     try {
       const result = safeEval(expression);
@@ -147,8 +188,8 @@ export const calculatorTool = tool({
   },
 });
 
-// ─── DateTime Tool ────────────────────────────────────────────────────────────
-
+// ─── DateTime Tool ────────────────────────────────────────────────────────────// Example of a zero-input tool — inputSchema is an empty Zod object.
+// Test prompt: "What day of the week is it today?"
 export const dateTimeTool = tool({
   description: "Get the current date, time, and timezone information.",
   inputSchema: z.object({}),
@@ -164,8 +205,9 @@ export const dateTimeTool = tool({
   },
 });
 
-// ─── All Tools Export ─────────────────────────────────────────────────────────
-
+// ─── All Tools Export ─────────────────────────────────────────────────────────// STEP 4 — register every tool here so route.ts can pass them to streamText.
+// Add your own tool above, then include it in this object.
+// The key name is what the model sees when deciding which tool to call.
 export const allTools = {
   weather: weatherTool,
   calculator: calculatorTool,

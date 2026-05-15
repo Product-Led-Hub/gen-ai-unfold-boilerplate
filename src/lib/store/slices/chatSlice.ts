@@ -1,3 +1,34 @@
+/**
+ * @file lib/store/slices/chatSlice.ts
+ * @description Redux slice for in-memory conversation state.
+ *
+ * NOTE: This slice is kept for backwards compatibility and bootcamp exercises.
+ * In the current application, chat history is persisted in SQLite and loaded
+ * into `useChat` via `ChatPanel`. This slice is not actively written to by the
+ * main chat flow — use it as a starting point for your own features.
+ *
+ * State shape:
+ * ```ts
+ * {
+ *   conversations: Conversation[];   // all in-memory conversations
+ *   activeConversationId: string | null;
+ *   isLoading: boolean;
+ *   error: string | null;
+ * }
+ * ```
+ *
+ * Actions:
+ *  - `createConversation({ id, title? })` — create and activate a new conversation.
+ *  - `setActiveConversation(id)` — switch the active conversation.
+ *  - `addMessage({ conversationId, message })` — push a message into a conversation.
+ *  - `setLoading(bool)` — toggle the loading state.
+ *  - `setError(string | null)` — set or clear an error.
+ *  - `clearConversations()` — wipe all in-memory conversations.
+ *
+ * Extension ideas:
+ *  - Sync this slice to SQLite via a Redux middleware or `useEffect`.
+ *  - Add an `editMessage` action to support message editing.
+ */
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface Message {

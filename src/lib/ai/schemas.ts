@@ -1,9 +1,40 @@
+/**
+ * @file lib/ai/schemas.ts
+ * @description Zod validation schemas for the chat API route.
+ *
+ * Key schemas:
+ *  - `messageSchema` — validates a single AI SDK UIMessage (role + passthrough).
+ *  - `chatRequestSchema` — validates the full request body for `POST /api/chat`.
+ *    Covers: messages, provider, model, temperature, maxTokens, systemPrompt,
+ *    useTools, useRAG, ragEmbeddingProvider, localEndpoint, historyLimit.
+ *  - `providerConfigSchema` — optional API key + baseURL override.
+ *  - `settingsSchema` — validates the full Redux settings object.
+ *  - `streamResponseSchema` — shape of a single SSE chunk from the streaming API.
+ *
+ * How to use:
+ * ```ts
+ * // In an API route handler:
+ * const validated = chatRequestSchema.parse(await request.json());
+ * // Access: validated.provider, validated.model, validated.messages, ...
+ * ```
+ *
+ * Why Zod?
+ *  All external inputs (HTTP request bodies) are untrusted. Zod rejects malformed
+ *  or missing fields with descriptive errors before they reach any AI call,
+ *  preventing prompt injection and invalid-argument errors.
+ */
 import { z } from "zod";
 
-export const messageSchema = z.object({
-  role: z.enum(["user", "assistant", "system"]),
-  content: z.string().min(1, "Message content cannot be empty"),
-});
+// Messages arrive from useChat in AI SDK v6 UIMessage format:
+//   { role, parts: [{type:"text", text:"..."}], id, ... }
+// We do loose validation here — convertToCoreMessages() in the route handler
+// converts them to the CoreMessage format that streamText() expects.
+// We only require `role` and passthrough everything else the SDK sends.
+export const messageSchema = z
+  .object({
+    role: z.enum(["user", "assistant", "system", "tool"]),
+  })
+  .passthrough();
 
 export const chatRequestSchema = z.object({
   messages: z.array(messageSchema).min(1, "At least one message is required"),
@@ -17,7 +48,13 @@ export const chatRequestSchema = z.object({
   useTools: z.boolean().optional().default(false),
   // Session 3: RAG
   useRAG: z.boolean().optional().default(false),
-  ragEmbeddingProvider: z.enum(["openai", "ollama"]).optional().default("openai"),
+  ragEmbeddingProvider: z.enum(["openai", "ollama", "lmstudio"]).optional().default("lmstudio"),
+  // Local provider endpoint override (from the UI localEndpoints setting)
+  // Lets users point LM Studio / Ollama at a custom host without touching .env
+  localEndpoint: z.string().optional(),
+  // Number of previous messages to include in the request.
+  // 0 = no history, 10 = last 10 messages (5 turns), 100 = all.
+  historyLimit: z.number().int().min(0).max(200).optional().default(20),
 });
 
 export const providerConfigSchema = z.object({

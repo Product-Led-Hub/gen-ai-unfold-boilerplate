@@ -1,3 +1,32 @@
+/**
+ * @file FeaturesToggle.tsx
+ * @description Toggle panel for optional AI features: Tool Calling and RAG.
+ *
+ * Responsibilities:
+ *  - Two toggle switches: **Tool Calling** and **Use RAG**.
+ *  - When RAG is enabled, shows three embedding-provider buttons
+ *    (LM Studio / Ollama / OpenAI) so the user can switch the vector-store
+ *    backend without touching environment variables.
+ *  - All state lives in the parent (controlled component pattern).
+ *
+ * How to use:
+ * ```tsx
+ * <FeaturesToggle
+ *   useTools={settings.useTools}
+ *   useRAG={settings.useRAG}
+ *   ragEmbeddingProvider={settings.ragEmbeddingProvider}
+ *   onToggleTools={(v) => dispatch(setUseTools(v))}
+ *   onToggleRAG={(v) => dispatch(setUseRAG(v))}
+ *   onChangeEmbeddingProvider={(v) => dispatch(setRAGEmbeddingProvider(v))}
+ * />
+ * ```
+ *
+ * Bootcamp session: Session 3 — Tool Calling & RAG.
+ *
+ * Extension ideas:
+ *  - Add a Web Search toggle that routes through a `searchTool`.
+ *  - Add a Code Execution toggle (sandboxed via a Docker tool).
+ */
 "use client";
 
 import {
@@ -11,10 +40,10 @@ import {
 interface FeaturesToggleProps {
   useTools: boolean;
   useRAG: boolean;
-  ragEmbeddingProvider: "openai" | "ollama";
+  ragEmbeddingProvider: "openai" | "ollama" | "lmstudio";
   onToggleTools: (value: boolean) => void;
   onToggleRAG: (value: boolean) => void;
-  onChangeEmbeddingProvider: (value: "openai" | "ollama") => void;
+  onChangeEmbeddingProvider: (value: "openai" | "ollama" | "lmstudio") => void;
 }
 
 export function FeaturesToggle({
@@ -88,8 +117,8 @@ export function FeaturesToggle({
             <p className="text-xs font-medium text-muted-foreground">
               Embedding provider
             </p>
-            <div className="flex gap-2">
-              {(["openai", "ollama"] as const).map((p) => (
+            <div className="flex gap-2 flex-wrap">
+              {(["lmstudio", "ollama", "openai"] as const).map((p) => (
                 <button
                   key={p}
                   onClick={() => onChangeEmbeddingProvider(p)}
@@ -99,13 +128,18 @@ export function FeaturesToggle({
                       : "border-input hover:bg-muted"
                   }`}
                 >
-                  {p === "openai" ? "OpenAI" : "Ollama"}
+                  {p === "openai" ? "OpenAI" : p === "ollama" ? "Ollama" : "LM Studio"}
                 </button>
               ))}
             </div>
             {ragEmbeddingProvider === "ollama" && (
               <p className="text-xs text-muted-foreground">
                 Requires <code>nomic-embed-text</code> pulled in Ollama
+              </p>
+            )}
+            {ragEmbeddingProvider === "lmstudio" && (
+              <p className="text-xs text-muted-foreground">
+                Uses <code>text-embedding-nomic-embed-text-v1.5</code> via LM Studio
               </p>
             )}
           </div>

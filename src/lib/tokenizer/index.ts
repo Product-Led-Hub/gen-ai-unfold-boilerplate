@@ -1,3 +1,33 @@
+/**
+ * @file lib/tokenizer/index.ts
+ * @description Token counting utilities using `js-tiktoken` (runs in both Node and browser).
+ *
+ * Why token counting?
+ *  LLMs have a fixed context window (e.g. GPT-4o = 128 k tokens). Knowing how many
+ *  tokens a message costs lets you warn users before they hit the limit and helps
+ *  estimate API costs.
+ *
+ * Exported functions:
+ *  - `countTokens(text, model?)` → `number` — tokens in a raw string.
+ *  - `countMessageTokens(messages, model?)` → `number` — tokens in a message array
+ *    (includes role overhead per message, matching OpenAI's billing formula).
+ *  - `getRemainingTokens(messages, model?, reserve?)` → `number` — context tokens left.
+ *  - `getContextLimit(model?)` → `number` — max context window for the model.
+ *  - `calculateCost(messages, model?)` → `number` — estimated USD cost.
+ *  - `formatTokenCount(n)` → `string` — human-readable "1.2k" / "45" formatting.
+ *
+ * Model mapping:
+ *  Non-OpenAI models (Claude, Gemini, local) are mapped to the nearest GPT tiktoken
+ *  encoding for a close approximation (actual counts vary ±5–10 %).
+ *
+ * How to use:
+ * ```ts
+ * import { countTokens, formatTokenCount } from "@/lib/tokenizer";
+ *
+ * const n = countTokens(inputText, "gpt-4o");
+ * console.log(`~${formatTokenCount(n)} tokens`);
+ * ```
+ */
 import {
   encodingForModel,
   getEncoding,
@@ -64,11 +94,23 @@ function getEncoder(model: string): Tiktoken {
 }
 
 export function countTokens(text: string, model: string = "gpt-4o"): number {
+  if (!text) return 0;
+  // For models not in the tiktoken map (local / Llama / Mistral), skip the
+  // WASM path entirely and use the char-based estimate — it's fast, reliable,
+  // and accurate enough for display purposes (±10%).
+  if (!MODEL_TO_TIKTOKEN[model]) {
+    return estimateTokens(text);
+  }
   try {
     const encoder = getEncoder(model);
-    return encoder.encode(text).length;
+    const encoded = encoder.encode(text);
+    // Guard against silent WASM failures that return empty arrays
+    if (encoded.length === 0 && text.length > 0) {
+      return estimateTokens(text);
+    }
+    return encoded.length;
   } catch {
-    return Math.ceil(text.length / 4);
+    return estimateTokens(text);
   }
 }
 

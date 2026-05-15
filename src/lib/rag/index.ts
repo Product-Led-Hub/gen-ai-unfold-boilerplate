@@ -1,4 +1,58 @@
+/**
+ * @file lib/rag/index.ts
+ * @description RAG (Retrieval-Augmented Generation) pipeline orchestration.
+ *
+ * The RAG pipeline turns your documents into grounded AI answers:
+ *
+ * ```
+ * Document text
+ *     │
+ *     ▼
+ *  chunkText()          Split into overlapping ~500-char windows
+ *     │
+ *     ▼
+ *  getEmbeddings()      Vectorise every chunk (local or cloud model)
+ *     │
+ *     ▼
+ *  addDocument()        Persist chunks to SQLite + in-memory cache
+ *
+ * User message
+ *     │
+ *     ▼
+ *  getEmbedding()       Vectorise the query
+ *     │
+ *     ▼
+ *  search()             Cosine similarity → top-K chunks
+ *     │
+ *     ▼
+ *  buildRAGSystemPrompt()  Inject context into the system prompt
+ * ```
+ *
+ * Exported functions:
+ *  - `chunkText(text, opts?)` — split text into overlapping string chunks.
+ *  - `ingestDocument(text, opts?)` — full ingest pipeline; returns `IngestResult`.
+ *  - `retrieveContext(query, opts?)` — embed query + return top-K chunks.
+ *  - `buildRAGSystemPrompt(basePrompt, chunks)` — append retrieved context.
+ *  - `getDocumentCount()` — total chunks in the store (used for logging).
+ *  - `clearDocuments()` — wipe all chunks (for testing/reset).
+ *
+ * Bootcamp session: Session 3 — RAG.
+ *
+ * Extension ideas:
+ *  - Increase `topK` to 5–10 for longer, denser documents.
+ *  - Add metadata filtering (e.g. only search chunks from a specific source).
+ *  - Replace cosine similarity with a re-ranker model for better precision.
+ */
 // RAG orchestration: chunking, ingestion, and retrieval-augmented context.
+//
+// Session 3 live coding — four core functions to build the RAG pipeline:
+//
+//   1. chunkText()             — split document into overlapping windows
+//   2. ingestDocument()        — chunk → embed → store (call once per document)
+//   3. retrieveContext()       — embed query → cosine search → top-K chunks
+//   4. buildRAGSystemPrompt()  — inject retrieved context into the system prompt
+//
+// Tested with: LM Studio (llama-3.2-3b-instruct) + Ollama nomic-embed-text
 
 import { addDocument, search, getDocumentCount, clearDocuments } from "./vectorStore";
 import { getEmbedding, getEmbeddings } from "./embeddings";
@@ -7,7 +61,9 @@ import type { SearchResult } from "./vectorStore";
 export { getDocumentCount, clearDocuments };
 export type { SearchResult };
 
-// ─── Text Chunker ─────────────────────────────────────────────────────────────
+// ─── 1. Text Chunker ─────────────────────────────────────────────────────────────────
+// Splits long text into overlapping chunks at sentence boundaries.
+// Default: 500-char chunks with 100-char overlap to preserve context.
 
 interface ChunkOptions {
   chunkSize?: number;   // target characters per chunk
@@ -42,19 +98,23 @@ export function chunkText(
     }
 
     chunks.push(normalized.slice(start, end).trim());
-    start = end - overlap;
+    const next = end - overlap;
+    // Always advance by at least 1 character to prevent infinite loops.
+    start = next > start ? next : end;
   }
 
   return chunks.filter((c) => c.length > 0);
 }
 
-// ─── Ingest Document ──────────────────────────────────────────────────────────
+// ─── 2. Ingest Document ─────────────────────────────────────────────────────────────────
+// Call once per document (e.g. after the user pastes text in the UI).
+// Pipeline: chunkText() → getEmbeddings() → addDocument() × N
 
 export interface IngestOptions {
   source?: string;
   chunkSize?: number;
   overlap?: number;
-  embeddingProvider?: "openai" | "ollama";
+  embeddingProvider?: "openai" | "ollama" | "lmstudio";
   embeddingModel?: string;
   embeddingBaseURL?: string;
 }
@@ -95,12 +155,14 @@ export async function ingestDocument(
   return { chunks: chunks.length, documentIds, source };
 }
 
-// ─── Retrieve Context ─────────────────────────────────────────────────────────
+// ─── 3. Retrieve Context ─────────────────────────────────────────────────────────────────
+// Called on every user message when RAG is enabled.
+// Pipeline: embed(query) → cosine search → top-K chunks → formatted text
 
 export interface RetrieveOptions {
   topK?: number;
   minScore?: number;
-  embeddingProvider?: "openai" | "ollama";
+  embeddingProvider?: "openai" | "ollama" | "lmstudio";
   embeddingModel?: string;
   embeddingBaseURL?: string;
 }
@@ -146,7 +208,9 @@ export async function retrieveContext(
   return { contextText, sources };
 }
 
-// ─── Build RAG System Prompt ──────────────────────────────────────────────────
+// ─── 4. Build RAG System Prompt ───────────────────────────────────────────────
+// Wraps the retrieved context + original system prompt into the format
+// the model expects. Instructs the model not to hallucinate.
 
 export function buildRAGSystemPrompt(
   contextText: string,

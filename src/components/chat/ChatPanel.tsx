@@ -38,6 +38,7 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "ai";
 import { ChatMessages } from "@/components/chat/ChatMessages";
+import type { MessagePart } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { useAppSelector } from "@/lib/store";
 import { countTokens } from "@/lib/tokenizer";
@@ -103,8 +104,6 @@ export function ChatPanel({ sessionId, initialMessages, historyLimit, onTitleUpd
   );
 
   const { messages, sendMessage, status, error } = useChat({
-    api: "/api/chat",
-    body: chatBody,
     messages: uiInitial,
   });
 
@@ -179,6 +178,7 @@ export function ChatPanel({ sessionId, initialMessages, historyLimit, onTitleUpd
               ?.filter((p) => p.type === "text")
               .map((p) => p.text ?? "")
               .join("") ?? "",
+          parts: m.parts as MessagePart[],
         }))}
         isLoading={isLoading}
       />

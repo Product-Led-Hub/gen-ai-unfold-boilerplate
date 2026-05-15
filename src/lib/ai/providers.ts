@@ -142,6 +142,13 @@ export function createDynamicProvider(
 
 export function getModel(modelConfig: ModelConfig): LanguageModel {
   const provider = createDynamicProvider(modelConfig.provider, modelConfig.config);
+  // lmstudio and ollama use the OpenAI-compatible Chat Completions endpoint
+  // (/v1/chat/completions). @ai-sdk/openai v3 defaults to the new Responses
+  // API (/v1/responses) which these local servers don't support — so we
+  // explicitly call provider.chat() to force the classic endpoint.
+  if (modelConfig.provider === "lmstudio" || modelConfig.provider === "ollama") {
+    return (provider as ReturnType<typeof createOpenAI>).chat(modelConfig.model) as LanguageModel;
+  }
   return provider(modelConfig.model) as LanguageModel;
 }
 

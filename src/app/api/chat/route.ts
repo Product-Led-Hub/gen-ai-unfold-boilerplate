@@ -30,8 +30,16 @@ export async function POST(request: NextRequest) {
     // ── STEP 2: Convert UIMessages → ModelMessages ───────────────────────────
     // useChat sends UIMessage format (parts, id, attachments).
     // streamText requires ModelMessage format (content string or parts array).
-    // convertToModelMessages() is the official SDK conversion function.
-    const allCoreMessages = await convertToModelMessages(messages as unknown as UIMessage[]);
+    // Strip internal SDK-only part types (e.g. "step-start") that are not
+    // valid message content and cause "invalid_union" errors on OpenAI-compatible
+    // endpoints (LM Studio, Ollama) when included in the conversation history.
+    const cleanedMessages = (messages as unknown as UIMessage[]).map((m) => ({
+      ...m,
+      parts: (m.parts as Array<{ type: string }> | undefined)?.filter(
+        (p) => p.type !== "step-start"
+      ) ?? m.parts,
+    }));
+    const allCoreMessages = await convertToModelMessages(cleanedMessages);
     // Slice to the last `historyLimit` messages so older turns are dropped.
     // historyLimit 0 means send no history (only the current message).
     const coreMessages =

@@ -1,4 +1,4 @@
-import { streamText, createTextStreamResponse, convertToModelMessages } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import type { ModelMessage, UIMessage } from "ai";
 import { NextRequest } from "next/server";
 import { chatRequestSchema } from "@/lib/ai/schemas";
@@ -107,10 +107,11 @@ export async function POST(request: NextRequest) {
     });
 
     // ── STEP 5: Return a streaming HTTP response ────────────────────────────
-    // Tokens arrive at the client as they are generated — no waiting.
-    return createTextStreamResponse({
-      textStream: result.textStream,
-    });
+    // toUIMessageStreamResponse sends the full UI message stream protocol:
+    // text tokens, tool invocations, tool results, finish reason, and usage.
+    // This is required for tool call cards to appear in the chat UI.
+    // (createTextStreamResponse only sends raw text — tool events are dropped.)
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("Chat API error:", error);
 

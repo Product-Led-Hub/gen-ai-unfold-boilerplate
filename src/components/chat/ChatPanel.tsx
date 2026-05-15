@@ -36,7 +36,6 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TextStreamChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -59,27 +58,24 @@ interface ChatPanelProps {
 export function ChatPanel({ sessionId, initialMessages, historyLimit, onTitleUpdate }: ChatPanelProps) {
   const settings = useAppSelector((s) => s.settings);
 
-  const transport = useMemo(
-    () =>
-      new TextStreamChatTransport({
-        api: "/api/chat",
-        body: {
-          provider: settings.provider,
-          model: settings.model,
-          temperature: settings.temperature,
-          maxTokens: settings.maxTokens,
-          systemPrompt: settings.systemPrompt,
-          useTools: settings.useTools,
-          useRAG: settings.useRAG,
-          ragEmbeddingProvider: settings.ragEmbeddingProvider,
-          localEndpoint:
-            settings.provider === "lmstudio" || settings.provider === "ollama"
-              ? settings.localEndpoints[settings.provider]
-              : undefined,
-          historyLimit,
-        },
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Body is recomputed on every render so useChat always sends the latest settings.
+  // useChat reads the body prop on each sendMessage() call — no stale values.
+  const chatBody = useMemo(
+    () => ({
+      provider: settings.provider,
+      model: settings.model,
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      systemPrompt: settings.systemPrompt,
+      useTools: settings.useTools,
+      useRAG: settings.useRAG,
+      ragEmbeddingProvider: settings.ragEmbeddingProvider,
+      localEndpoint:
+        settings.provider === "lmstudio" || settings.provider === "ollama"
+          ? settings.localEndpoints[settings.provider]
+          : undefined,
+      historyLimit,
+    }),
     [
       settings.provider,
       settings.model,
@@ -107,7 +103,8 @@ export function ChatPanel({ sessionId, initialMessages, historyLimit, onTitleUpd
   );
 
   const { messages, sendMessage, status, error } = useChat({
-    transport,
+    api: "/api/chat",
+    body: chatBody,
     messages: uiInitial,
   });
 
@@ -168,7 +165,7 @@ export function ChatPanel({ sessionId, initialMessages, historyLimit, onTitleUpd
   }, [messages, settings.model]);
 
   const handleSend = (content: string) => {
-    sendMessage({ text: content });
+    sendMessage({ text: content }, { body: chatBody });
   };
 
   return (
